@@ -96,6 +96,7 @@ unsigned int last_batt_pptt[16] = {10001,10001,10001,10001,10001,10001,10001,100
 int8_t last_batt_pptt_i = 0;
 bool system_off_main = false;
 bool send_data = false;
+int16_t pot_val = 0;
 
 void event_handler(struct esb_evt const *event)
 {
@@ -112,8 +113,11 @@ void event_handler(struct esb_evt const *event)
 					pairing_buf[i] = rx_payload.data[i];
 				}
 				esb_write_payload(&tx_payload_pair); // Add to TX buffer
-			} else {
-				esb_write_payload(&tx_payload); // Add to TX buffer
+			} else if (rx_payload.length == 10) {
+				if (rx_payload.data[0] != rx_payload.data[2]) break;
+				if (rx_payload.data[1] != rx_payload.data[3]) break;
+				pot_val = (int16_t)rx_payload.data[0] << 8 | rx_payload.data[1];
+				//esb_write_payload(&tx_payload); // Add to TX buffer
 			}
 		}
 		break;
@@ -210,29 +214,6 @@ void power_check(void) {
 	}
 	LOG_INF("Battery %u%% (%dmV)", batt_pptt/100, batt_mV);
 }
-
-void main_thread(void) {
-	main_running = true;
-	while (1) {
-			if (true) {
-				for (uint16_t i = 0; i < 4; i++) {
-					tx_payload.data[i] = 0;
-				}
-				tx_payload.data[0] = 0;
-				tx_payload.data[1] = 0 << 4;
-				tx_payload.data[2] = batt;
-				tx_payload.data[3] = batt_v;
-				esb_flush_tx();
-				esb_write_payload(&tx_payload); // Add transmission to queue
-				send_data = true;
-			}
-		main_running = false;
-		k_sleep(K_FOREVER);
-		main_running = true;
-	}
-}
-
-K_THREAD_DEFINE(main_thread_id, 4096, main_thread, NULL, NULL, NULL, 7, 0, 0);
 
 void wait_for_threads(void) {
 	while (main_running) {
@@ -386,15 +367,6 @@ int main(void)
 		int batt_mV;
 		batt_pptt = read_batt_mV(&batt_mV);
 
-		if (batt_pptt == 0)
-		{
-			LOG_INF("Waiting for system off (Low battery)");
-			wait_for_threads();
-			LOG_INF("Shutdown");
-			// Turn off LED
-			gpio_pin_set_dt(&led, 0);
-			configure_system_off();
-		}
 		last_batt_pptt[last_batt_pptt_i] = batt_pptt;
 		last_batt_pptt_i++;
 		last_batt_pptt_i %= 15;
@@ -419,18 +391,12 @@ int main(void)
 		else if (batt_mV > 255) {batt_v = 255;}
 		else {batt_v = batt_mV;} // 0-255 -> 2.45-5.00V
 
-		if (system_off_main) { // System off
-			LOG_INF("Waiting for system off");
-			wait_for_threads();
-			LOG_INF("Shutdown");
-			// Turn off LED
-			gpio_pin_set_dt(&led, 0);
-		}
-
-		wait_for_threads();
-		k_wakeup(main_thread_id);
-
-		pwm_set_pulse_dt(&servo, 0);
+		float pot_val_f = (float)pot_val / 32768;
+		pot_val_f += 1;
+		pot_val_f *= 500;
+		pot_val_f += 1000;
+		pot_val_f *= 1000;
+		pwm_set_pulse_dt(&servo, (uint32_t)pot_val_f);
 
 		// Get time elapsed and sleep/yield until next tick
 		int64_t time_delta = k_uptime_get() - time_begin;
