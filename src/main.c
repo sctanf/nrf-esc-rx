@@ -150,8 +150,6 @@ int clocks_start(void)
 
 int esb_initialize_tx(void)
 {
-	int err;
-
 	struct esb_config config = ESB_DEFAULT_CONFIG;
 
 	// config.protocol = ESB_PROTOCOL_ESB_DPL;
@@ -180,8 +178,6 @@ int esb_initialize_tx(void)
 
 int esb_initialize(void)
 {
-	int err;
-
 	struct esb_config config = ESB_DEFAULT_CONFIG;
 
 	// config.protocol = ESB_PROTOCOL_ESB_DPL;
@@ -407,7 +403,8 @@ int main(void)
 		if (k_uptime_get() > last_data_sent + 500) pot_val = 0;
 
 		float max_change = 0.5 * 32768.0 * tickrate / 1000.0;
-		float idle_val = 0.08 * 32768.0;
+		float idle_val_f = 0.08;
+		float idle_val = idle_val_f * 32768.0;
 		if (pot_val > -idle_val && pot_val < idle_val)
 		{
 			pot_val = 0; // actual should be 0
@@ -433,8 +430,12 @@ int main(void)
 			pot_val_actual2 = 0; // actual should be 0
 		}
 
-		if (pot_val_actual2 > 0.81 * 32768) pot_val_actual2 = 0.81 * 32768;
-		if (pot_val_actual2 < -0.86 * 32768) pot_val_actual2 = -0.86 * 32768;
+		float max_fwd_f = 0.81;
+		float mav_rev_f = 0.86;
+		if (pot_val_actual2 > idle_val) pot_val_actual2 = idle_val + ((float)pot_val_actual2 - idle_val) * ((max_fwd_f - idle_val_f) / (1 - idle_val_f));
+		if (pot_val_actual2 < -idle_val) pot_val_actual2 = -idle_val - ((float)(-pot_val_actual2) - idle_val) * ((mav_rev_f - idle_val_f) / (1 - idle_val_f));
+		if (pot_val_actual2 > max_fwd_f * 32768) pot_val_actual2 = max_fwd_f * 32768;
+		if (pot_val_actual2 < -mav_rev_f * 32768) pot_val_actual2 = -mav_rev_f * 32768;
 		if (pot_val_actual2 < pot_val_actual - max_change) pot_val_actual -= max_change;
 		else if (pot_val_actual2 > pot_val_actual + max_change) pot_val_actual += max_change;
 		else pot_val_actual = pot_val_actual2;
