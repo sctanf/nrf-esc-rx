@@ -83,6 +83,7 @@ uint8_t reset_mode = -1;
 #define ZEPHYR_USER_NODE DT_PATH(zephyr_user)
 const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(ZEPHYR_USER_NODE, led_gpios);
 static const struct pwm_dt_spec servo = PWM_DT_SPEC_GET(DT_NODELABEL(servo));
+const struct gpio_dt_spec esc = GPIO_DT_SPEC_GET(ZEPHYR_USER_NODE, esc_gpios);
 
 int tickrate = 5;
 
@@ -97,6 +98,13 @@ int8_t last_batt_pptt_i = 0;
 bool system_off_main = false;
 bool send_data = false;
 int16_t pot_val = 0;
+int16_t pot_val_actual = 0;
+int64_t idle_start_time = 0;
+int64_t idle_end_time = 0;
+int64_t last_data_sent = 0;
+bool idle_esc = true;
+#define esc_idle_time_dur 10000
+#define esc_start_time_dur 2000
 
 void event_handler(struct esb_evt const *event)
 {
@@ -117,7 +125,8 @@ void event_handler(struct esb_evt const *event)
 				if (rx_payload.data[0] != rx_payload.data[2]) break;
 				if (rx_payload.data[1] != rx_payload.data[3]) break;
 				pot_val = (int16_t)rx_payload.data[0] << 8 | rx_payload.data[1];
-				//esb_write_payload(&tx_payload); // Add to TX buffer
+				last_data_sent = k_uptime_get();
+				esb_write_payload(&tx_payload); // Add to TX buffer
 			}
 		}
 		break;
@@ -231,6 +240,8 @@ int main(void)
 
 	gpio_pin_configure_dt(&led, GPIO_OUTPUT);
 	gpio_pin_set_dt(&led, 1);
+
+	gpio_pin_configure_dt(&esc, GPIO_OUTPUT);
 
 	struct flash_pages_info info;
 	fs.flash_device = NVS_PARTITION_DEVICE;
@@ -390,13 +401,58 @@ int main(void)
 		if (batt_mV < 0) {batt_v = 0;} // Very dead but it is what it is
 		else if (batt_mV > 255) {batt_v = 255;}
 		else {batt_v = batt_mV;} // 0-255 -> 2.45-5.00V
+		tx_payload.data[0] = batt;
+		tx_payload.data[1] = batt;
 
-		float pot_val_f = (float)pot_val / 32768;
+		if (k_uptime_get() > last_data_sent + 500) pot_val = 0;
+
+		float max_change = 0.5 * 32768.0 * tickrate / 1000.0;
+		float idle_val = 0.08 * 32768.0;
+		if (pot_val > -idle_val && pot_val < idle_val)
+		{
+			pot_val = 0; // actual should be 0
+			if (pot_val_actual < -idle_val || pot_val_actual > idle_val)
+			{
+				idle_start_time = k_uptime_get();
+			}
+			else if (k_uptime_get() > idle_start_time + esc_idle_time_dur)
+			{
+				idle_start_time = 0;
+				idle_esc = true;
+				// actual should be off
+			}
+		}
+		else if (idle_esc) {
+			idle_end_time = k_uptime_get();
+			idle_esc = false;
+		}
+		
+		int16_t pot_val_actual2 = pot_val;
+		if (k_uptime_get() < idle_end_time + esc_start_time_dur)
+		{
+			pot_val_actual2 = 0; // actual should be 0
+		}
+
+		if (pot_val_actual2 > 0.81 * 32768) pot_val_actual2 = 0.81 * 32768;
+		if (pot_val_actual2 < -0.86 * 32768) pot_val_actual2 = -0.86 * 32768;
+		if (pot_val_actual2 < pot_val_actual - max_change) pot_val_actual -= max_change;
+		else if (pot_val_actual2 > pot_val_actual + max_change) pot_val_actual += max_change;
+		else pot_val_actual = pot_val_actual2;
+
+		float pot_val_f = (float)pot_val_actual / 32768;
 		pot_val_f += 1;
 		pot_val_f *= 500;
 		pot_val_f += 1000;
 		pot_val_f *= 1000;
-		pwm_set_pulse_dt(&servo, (uint32_t)pot_val_f);
+
+		if (idle_esc) gpio_pin_set_dt(&led, 0);
+		else gpio_pin_set_dt(&led, 1);
+
+		if (idle_esc) gpio_pin_set_dt(&esc, 0);
+		else gpio_pin_set_dt(&esc, 1);
+
+		if (idle_esc) pwm_set_pulse_dt(&servo, 0);
+		else pwm_set_pulse_dt(&servo, (uint32_t)pot_val_f);
 
 		// Get time elapsed and sleep/yield until next tick
 		int64_t time_delta = k_uptime_get() - time_begin;
