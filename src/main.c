@@ -104,7 +104,7 @@ int64_t idle_end_time = 0;
 int64_t last_data_sent = 0;
 bool idle_esc = true;
 #define esc_idle_time_dur 10000
-#define esc_start_time_dur 2000
+#define esc_start_time_dur 800
 
 void event_handler(struct esb_evt const *event)
 {
@@ -391,7 +391,7 @@ int main(void)
 
 		// format for packet send
 		batt = batt_pptt / 100;
-		if (batt < 1) {batt = 1;} // Clamp to 1%
+//		if (batt < 1) {batt = 1;} // Clamp to 1%
 		batt_mV /= 10;
 		batt_mV -= 245;
 		if (batt_mV < 0) {batt_v = 0;} // Very dead but it is what it is

@@ -17,9 +17,9 @@
 	battery-divider {
 		compatible = "voltage-divider";
 		status = "okay";
-		io-channels = <&adc 0>; // Measure VDDHDIV5
+		io-channels = <&adc 0>;
 		output-ohms = <330000>;
-		full-ohms = <1330000>;
+		full-ohms = <439000>; // 1000000+330000
 	};
 
 	pwmleds {
