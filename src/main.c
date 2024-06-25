@@ -157,7 +157,7 @@ int esb_initialize_tx(void)
 	// config.protocol = ESB_PROTOCOL_ESB_DPL;
 	// config.mode = ESB_MODE_PTX;
 	config.event_handler = event_handler;
-	// config.bitrate = ESB_BITRATE_2MBPS;
+	config.bitrate = ESB_BITRATE_1MBPS;
 	// config.crc = ESB_CRC_16BIT;
 	config.tx_output_power = 8;
 	// config.retransmit_delay = 600;
@@ -185,7 +185,7 @@ int esb_initialize(void)
 	// config.protocol = ESB_PROTOCOL_ESB_DPL;
 	config.mode = ESB_MODE_PRX;
 	config.event_handler = event_handler;
-	// config.bitrate = ESB_BITRATE_2MBPS;
+	config.bitrate = ESB_BITRATE_1MBPS;
 	// config.crc = ESB_CRC_16BIT;
 	config.tx_output_power = 8;
 	// config.retransmit_delay = 600;
