@@ -307,7 +307,7 @@ int main(void)
 					send_tracker_id = i;
 				}
 			}
-			if (found_addr != 0 && send_tracker_id == stored_trackers && stored_trackers < 1) { // New device, add to NVS
+			if (found_addr != 0 && send_tracker_id == stored_trackers && stored_trackers < 16) { // New device, add to NVS
 				LOG_INF("Added device on id %d with address %lld", stored_trackers, found_addr);
 				stored_tracker_addr[stored_trackers] = found_addr;
 				nvs_write(&fs, STORED_ADDR_0+stored_trackers, &stored_tracker_addr[stored_trackers], sizeof(stored_tracker_addr[0]));
