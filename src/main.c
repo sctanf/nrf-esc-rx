@@ -106,6 +106,8 @@ bool idle_esc = true;
 #define esc_idle_time_dur 10000
 #define esc_start_time_dur 800
 
+bool throttle = false;
+
 void event_handler(struct esb_evt const *event)
 {
 	switch (event->evt_id)
@@ -385,8 +387,8 @@ int main(void)
 			}
 		}
 		batt_pptt /= 16;
-		if (batt_pptt + 100 < last_batt_pptt[15]) {last_batt_pptt[15] = batt_pptt + 100;} // Lower bound -100pptt
-		else if (batt_pptt > last_batt_pptt[15]) {last_batt_pptt[15] = batt_pptt;} // Upper bound +0pptt
+		if (batt_pptt + 49 < last_batt_pptt[15]) {last_batt_pptt[15] = batt_pptt + 49;} // Lower bound -100pptt
+		else if (batt_pptt - 49 > last_batt_pptt[15]) {last_batt_pptt[15] = batt_pptt - 49;} // Upper bound +0pptt
 		else {batt_pptt = last_batt_pptt[15];} // Effectively 100-10000 -> 1-100%
 
 		// format for packet send
@@ -405,6 +407,7 @@ int main(void)
 		float max_change = 0.5 * 32768.0 * tickrate / 1000.0;
 		float idle_val_f = 0.08;
 		float idle_val = idle_val_f * 32768.0;
+		float throttle_val = 0.88 * 32768.0;
 		if (pot_val > -idle_val && pot_val < idle_val)
 		{
 			pot_val = 0; // actual should be 0
@@ -422,6 +425,13 @@ int main(void)
 		else if (idle_esc) {
 			idle_end_time = k_uptime_get();
 			idle_esc = false;
+		}
+
+		if (batt < 30 && throttle == false) throttle = true;
+		if (batt > 60 && throttle == true) throttle = false;
+		if (throttle) {
+			if (pot_val > throttle_val) pot_val = throttle_val;
+			if (pot_val < -throttle_val) pot_val = -throttle_val;
 		}
 		
 		int16_t pot_val_actual2 = pot_val;
