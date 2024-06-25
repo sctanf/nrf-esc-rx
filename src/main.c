@@ -275,6 +275,8 @@ int main(void)
 		LOG_INF("%d devices stored", stored_trackers);
 	}
 
+	// TODO add back separate pairing / clear pairing
+
 	clocks_start();
 
 	if (stored_trackers == 0) { // Pairing mode
