@@ -103,7 +103,7 @@ int64_t idle_start_time = 0;
 int64_t idle_end_time = 0;
 int64_t last_data_sent = 0;
 bool idle_esc = true;
-#define esc_idle_time_dur 10000
+#define esc_idle_time_dur 60000
 #define esc_start_time_dur 800
 
 bool throttle = false;
@@ -406,10 +406,11 @@ int main(void)
 
 		if (k_uptime_get() > last_data_sent + 500) pot_val = 0;
 
-		float max_change = 0.5 * 32768.0 * tickrate / 1000.0;
+		float change_sec = 2.0;
+		float max_change = change_sec * 32768.0 * tickrate / 1000.0;
 		float idle_val_f = 0.08;
 		float idle_val = idle_val_f * 32768.0;
-		float throttle_val = 0.88 * 32768.0;
+		int16_t throttle_val = 0.88 * 32768.0;
 		if (pot_val > -idle_val && pot_val < idle_val)
 		{
 			pot_val = 0; // actual should be 0
@@ -429,8 +430,8 @@ int main(void)
 			idle_esc = false;
 		}
 
-		if (batt < 30 && throttle == false) throttle = true;
-		if (batt > 60 && throttle == true) throttle = false;
+		if ((batt < 30) && (throttle == false)) throttle = true;
+		if ((batt > 60) && (throttle == true)) throttle = false;
 		if (throttle) {
 			if (pot_val > throttle_val) pot_val = throttle_val;
 			if (pot_val < -throttle_val) pot_val = -throttle_val;
