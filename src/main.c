@@ -236,6 +236,7 @@ int main(void)
 
 	//power_check(); // check the battery first before continuing (4ms delta to read from ADC)
 
+	int blink = 0;
 	gpio_pin_configure_dt(&led, GPIO_OUTPUT);
 	gpio_pin_set_dt(&led, 1);
 
@@ -296,7 +297,6 @@ int main(void)
 		for (int i = 0; i < 6; i++) {
 			tx_payload_pair.data[i+2] = (addr >> (8 * i)) & 0xFF;
 		}
-		int blink = 0;
 		while (true) { // Run indefinitely (User must reset/unplug dongle)
 			uint64_t found_addr = 0;
 			for (int i = 0; i < 6; i++) { // Take device address from RX buffer
@@ -406,11 +406,11 @@ int main(void)
 
 		if (k_uptime_get() > last_data_sent + 500) pot_val = 0;
 
-		float change_sec = 2.0;
+		float change_sec = 4.0;
 		float max_change = change_sec * 32768.0 * tickrate / 1000.0;
 		float idle_val_f = 0.08;
 		float idle_val = idle_val_f * 32768.0;
-		int16_t throttle_val = 0.88 * 32768.0;
+//		int16_t throttle_val = 0.88 * 32768.0;
 		if (pot_val > -idle_val && pot_val < idle_val)
 		{
 			pot_val = 0; // actual should be 0
@@ -430,12 +430,12 @@ int main(void)
 			idle_esc = false;
 		}
 
-		if ((batt < 30) && (throttle == false)) throttle = true;
-		if ((batt > 60) && (throttle == true)) throttle = false;
-		if (throttle) {
-			if (pot_val > throttle_val) pot_val = throttle_val;
-			if (pot_val < -throttle_val) pot_val = -throttle_val;
-		}
+//		if ((batt < 30) && (throttle == false)) throttle = true;
+//		if ((batt > 60) && (throttle == true)) throttle = false;
+//		if (throttle) {
+//			if (pot_val > throttle_val) pot_val = throttle_val;
+//			if (pot_val < -throttle_val) pot_val = -throttle_val;
+//		}
 		
 		int16_t pot_val_actual2 = pot_val;
 		if (k_uptime_get() < idle_end_time + esc_start_time_dur)
@@ -443,8 +443,10 @@ int main(void)
 			pot_val_actual2 = 0; // actual should be 0
 		}
 
-		float max_fwd_f = 0.81;
-		float mav_rev_f = 0.86;
+//		float max_fwd_f = 0.81;
+//		float mav_rev_f = 0.86;
+		float max_fwd_f = 1;
+		float mav_rev_f = 1;
 		if (pot_val_actual2 > idle_val) pot_val_actual2 = idle_val + ((float)pot_val_actual2 - idle_val) * ((max_fwd_f - idle_val_f) / (1 - idle_val_f));
 		if (pot_val_actual2 < -idle_val) pot_val_actual2 = -idle_val - ((float)(-pot_val_actual2) - idle_val) * ((mav_rev_f - idle_val_f) / (1 - idle_val_f));
 		if (pot_val_actual2 > max_fwd_f * 32768) pot_val_actual2 = max_fwd_f * 32768;
@@ -460,7 +462,14 @@ int main(void)
 		pot_val_f *= 1000;
 
 		if (idle_esc) gpio_pin_set_dt(&led, 0);
-		else gpio_pin_set_dt(&led, 1);
+		else {
+			if (batt < 25 && blink < 500/tickrate) // low bat
+				gpio_pin_set_dt(&led, 0);
+			else
+				gpio_pin_set_dt(&led, 1);
+			blink++;
+			blink %= 1000/tickrate;
+		}
 
 		if (idle_esc) gpio_pin_set_dt(&esc, 0);
 		else gpio_pin_set_dt(&esc, 1);
